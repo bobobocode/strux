@@ -14,10 +14,21 @@ static sx_int_t sx_decode_base64_internal(sx_str_t *dst, sx_str_t *src,
 
 
 void
-sx_strlow(u_char *dst, u_char *src, size_t n)
+sx_str_tolower(u_char *dst, u_char *src, size_t n)
 {
     while (n) {
         *dst = sx_tolower(*src);
+        dst++;
+        src++;
+        n--;
+    }
+}
+
+void
+sx_str_toupper(u_char *dst, u_char *src, size_t n)
+{
+    while (n) {
+        *dst = sx_toupper(*src);
         dst++;
         src++;
         n--;
@@ -1936,143 +1947,3 @@ sx_escape_json(u_char *dst, u_char *src, size_t size)
 
     return (uintptr_t) dst;
 }
-
-
-void
-sx_str_rbtree_insert_value(sx_rbtree_node_t *temp,
-    sx_rbtree_node_t *node, sx_rbtree_node_t *sentinel)
-{
-    sx_str_node_t      *n, *t;
-    sx_rbtree_node_t  **p;
-
-    for ( ;; ) {
-
-        n = (sx_str_node_t *) node;
-        t = (sx_str_node_t *) temp;
-
-        if (node->key != temp->key) {
-
-            p = (node->key < temp->key) ? &temp->left : &temp->right;
-
-        } else if (n->str.len != t->str.len) {
-
-            p = (n->str.len < t->str.len) ? &temp->left : &temp->right;
-
-        } else {
-            p = (sx_memcmp(n->str.data, t->str.data, n->str.len) < 0)
-                 ? &temp->left : &temp->right;
-        }
-
-        if (*p == sentinel) {
-            break;
-        }
-
-        temp = *p;
-    }
-
-    *p = node;
-    node->parent = temp;
-    node->left = sentinel;
-    node->right = sentinel;
-    sx_rbt_red(node);
-}
-
-
-sx_str_node_t *
-sx_str_rbtree_lookup(sx_rbtree_t *rbtree, sx_str_t *val, uint32_t hash)
-{
-    sx_int_t           rc;
-    sx_str_node_t     *n;
-    sx_rbtree_node_t  *node, *sentinel;
-
-    node = rbtree->root;
-    sentinel = rbtree->sentinel;
-
-    while (node != sentinel) {
-
-        n = (sx_str_node_t *) node;
-
-        if (hash != node->key) {
-            node = (hash < node->key) ? node->left : node->right;
-            continue;
-        }
-
-        if (val->len != n->str.len) {
-            node = (val->len < n->str.len) ? node->left : node->right;
-            continue;
-        }
-
-        rc = sx_memcmp(val->data, n->str.data, val->len);
-
-        if (rc < 0) {
-            node = node->left;
-            continue;
-        }
-
-        if (rc > 0) {
-            node = node->right;
-            continue;
-        }
-
-        return n;
-    }
-
-    return NULL;
-}
-
-
-/* sx_sort() is implemented as insertion sort because we need stable sort */
-
-void
-sx_sort(void *base, size_t n, size_t size,
-    sx_int_t (*cmp)(const void *, const void *))
-{
-    u_char  *p1, *p2, *p;
-
-    p = sx_alloc(size, sx_cycle->log);
-    if (p == NULL) {
-        return;
-    }
-
-    for (p1 = (u_char *) base + size;
-         p1 < (u_char *) base + n * size;
-         p1 += size)
-    {
-        sx_memcpy(p, p1, size);
-
-        for (p2 = p1;
-             p2 > (u_char *) base && cmp(p2 - size, p) > 0;
-             p2 -= size)
-        {
-            sx_memcpy(p2, p2 - size, size);
-        }
-
-        sx_memcpy(p2, p, size);
-    }
-
-    sx_free(p);
-}
-
-
-void
-sx_explicit_memzero(void *buf, size_t n)
-{
-    sx_memzero(buf, n);
-    sx_memory_barrier();
-}
-
-
-#if (NGX_MEMCPY_LIMIT)
-
-void *
-sx_memcpy(void *dst, const void *src, size_t n)
-{
-    if (n > NGX_MEMCPY_LIMIT) {
-        sx_log_error(NGX_LOG_ALERT, sx_cycle->log, 0, "memcpy %uz bytes", n);
-        sx_debug_point();
-    }
-
-    return memcpy(dst, src, n);
-}
-
-#endif

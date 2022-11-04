@@ -4,7 +4,7 @@
 #ifndef _STRINGX_H_INCLUDED_
 #define _STRINGX_H_INCLUDED_
 
-#include "typex.h"
+#include <sys/types.h>
 
 typedef struct {
     size_t      len;
@@ -18,18 +18,6 @@ typedef struct {
 } sx_keyval_t;
 
 
-typedef struct {
-    unsigned    len:28;
-
-    unsigned    valid:1;
-    unsigned    no_cacheable:1;
-    unsigned    not_found:1;
-    unsigned    escape:1;
-
-    u_char     *data;
-} sx_variable_value_t;
-
-
 #define sx_string(str)     { sizeof(str) - 1, (u_char *) str }
 #define sx_null_string     { 0, NULL }
 #define sx_str_set(str, text)                                               \
@@ -39,14 +27,11 @@ typedef struct {
 
 #define sx_tolower(c)      (u_char) ((c >= 'A' && c <= 'Z') ? (c | 0x20) : c)
 #define sx_toupper(c)      (u_char) ((c >= 'a' && c <= 'z') ? (c & ~0x20) : c)
-
-void sx_strlow(u_char *dst, u_char *src, size_t n);
+void sx_str_tolower(u_char *dst, u_char *src, size_t n);
+void sx_str_toupper(u_char *dst, u_char *src, size_t n);
 
 
 #define sx_strncmp(s1, s2, n)  strncmp((const char *) s1, (const char *) s2, n)
-
-
-/* msvc and icc7 compile strcmp() to inline loop */
 #define sx_strcmp(s1, s2)  strcmp((const char *) s1, (const char *) s2)
 
 
@@ -56,51 +41,6 @@ void sx_strlow(u_char *dst, u_char *src, size_t n);
 size_t sx_strnlen(u_char *p, size_t n);
 
 #define sx_strchr(s1, c)   strchr((const char *) s1, (int) c)
-
-static sx_inline u_char *
-sx_strlchr(u_char *p, u_char *last, u_char c)
-{
-    while (p < last) {
-
-        if (*p == c) {
-            return p;
-        }
-
-        p++;
-    }
-
-    return NULL;
-}
-
-
-/*
- * msvc and icc7 compile memset() to the inline "rep stos"
- * while ZeroMemory() and bzero() are the calls.
- * icc7 may also inline several mov's of a zeroed register for small blocks.
- */
-#define sx_memzero(buf, n)       (void) memset(buf, 0, n)
-#define sx_memset(buf, c, n)     (void) memset(buf, c, n)
-
-void sx_explicit_memzero(void *buf, size_t n);
-
-
-#if (SX_MEMCPY_LIMIT)
-
-void *sx_memcpy(void *dst, const void *src, size_t n);
-#define sx_cpymem(dst, src, n)   (((u_char *) sx_memcpy(dst, src, n)) + (n))
-
-#else
-
-/*
- * gcc3, msvc, and icc7 compile memcpy() to the inline "rep movs".
- * gcc3 compiles memcpy(d, s, 4) to the inline "mov"es.
- * icc8 compile memcpy(d, s, 4) to the inline "mov"es or XMM moves.
- */
-#define sx_memcpy(dst, src, n)   (void) memcpy(dst, src, n)
-#define sx_cpymem(dst, src, n)   (((u_char *) memcpy(dst, src, n)) + (n))
-
-#endif
-
 
 #if ( __INTEL_COMPILER >= 800 )
 
@@ -137,7 +77,6 @@ sx_copy(u_char *dst, u_char *src, size_t len)
 #define sx_movemem(dst, src, n)   (((u_char *) memmove(dst, src, n)) + (n))
 
 
-/* msvc and icc7 compile memcmp() to the inline loop */
 #define sx_memcmp(s1, s2, n)  memcmp((const char *) s1, (const char *) s2, n)
 
 
@@ -204,23 +143,6 @@ uintptr_t sx_escape_uri(u_char *dst, u_char *src, size_t size,
 void sx_unescape_uri(u_char **dst, u_char **src, size_t size, sx_uint_t type);
 uintptr_t sx_escape_html(u_char *dst, u_char *src, size_t size);
 uintptr_t sx_escape_json(u_char *dst, u_char *src, size_t size);
-
-
-typedef struct {
-    sx_rbtree_node_t         node;
-    sx_str_t                 str;
-} sx_str_node_t;
-
-
-void sx_str_rbtree_insert_value(sx_rbtree_node_t *temp,
-    sx_rbtree_node_t *node, sx_rbtree_node_t *sentinel);
-sx_str_node_t *sx_str_rbtree_lookup(sx_rbtree_t *rbtree, sx_str_t *name,
-    uint32_t hash);
-
-
-void sx_sort(void *base, size_t n, size_t size,
-    sx_int_t (*cmp)(const void *, const void *));
-#define sx_qsort             qsort
 
 
 #define sx_value_helper(n)   #n
